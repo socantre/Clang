@@ -17,6 +17,7 @@
 #include "clang/Driver/ToolChain.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Program.h"
 #include <sys/stat.h>
@@ -124,7 +125,8 @@ bool Compilation::CleanupFileList(const ArgStringList &Files,
 
       // FIXME: Grumble, P.exists() is broken. PR3837.
       struct stat buf;
-      if (::stat(P.c_str(), &buf) == 0 ? (buf.st_mode & S_IFMT) == S_IFREG :
+      if (llvm::sys::fs::Stat(P.c_str(), &buf) == 0 ?
+                                         (buf.st_mode & S_IFMT) == S_IFREG :
                                          (errno != ENOENT)) {
         if (IssueErrors)
           getDriver().Diag(clang::diag::err_drv_unable_to_remove_file)

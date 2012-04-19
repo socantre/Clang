@@ -1009,7 +1009,7 @@ void TextDiagnostic::highlightRange(const CharSourceRange &R,
   }
 
   // Compute the column number of the end.
-  unsigned EndColNo = map.getSourceLine().size();
+  unsigned EndColNo = CaretLine.size(); //map.getSourceLine().size();
   if (EndLineNo == LineNo) {
     EndColNo = SM.getExpansionColumnNumber(End);
     if (EndColNo) {

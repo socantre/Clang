@@ -19,6 +19,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Path.h"
@@ -1417,7 +1418,7 @@ static llvm::Optional<ino_t> getActualFileInode(const FileEntry *File) {
     return llvm::Optional<ino_t>();
   
   struct stat StatBuf;
-  if (::stat(File->getName(), &StatBuf))
+  if (llvm::sys::fs::Stat(File->getName(), &StatBuf))
     return llvm::Optional<ino_t>();
     
   return StatBuf.st_ino;

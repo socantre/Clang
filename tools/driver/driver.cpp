@@ -245,17 +245,17 @@ static void ExpandArgsFromBuf(const char *Arg,
   }
 }
 
-static void ExpandArgv(int argc, const char **argv,
+static void ExpandArgv(const std::vector<std::string> &argv,
                        SmallVectorImpl<const char*> &ArgVector,
                        std::set<std::string> &SavedStrings) {
-  for (int i = 0; i < argc; ++i) {
-    const char *Arg = argv[i];
-    if (Arg[0] != '@') {
-      ArgVector.push_back(SaveStringInSet(SavedStrings, std::string(Arg)));
+  for (std::vector<std::string>::const_iterator I = argv.begin(),
+       E = argv.end(); I != E; ++I) {
+    if (I->front() != '@') {
+      ArgVector.push_back(SaveStringInSet(SavedStrings, *I));
       continue;
     }
 
-    ExpandArgsFromBuf(Arg, ArgVector, SavedStrings);
+    ExpandArgsFromBuf(I->c_str(), ArgVector, SavedStrings);
   }
 }
 
@@ -347,7 +347,7 @@ int main(int argc_, const char **argv_) {
   std::set<std::string> SavedStrings;
   SmallVector<const char*, 256> argv;
 
-  ExpandArgv(argc_, argv_, argv, SavedStrings);
+  ExpandArgv(llvm::sys::fs::GetArgvAsUTF8(argc_, argv_), argv, SavedStrings);
 
   // Handle -cc1 integrated tools.
   if (argv.size() > 1 && StringRef(argv[1]).startswith("-cc1")) {

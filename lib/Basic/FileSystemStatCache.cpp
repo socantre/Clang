@@ -13,6 +13,7 @@
 
 #include "clang/Basic/FileSystemStatCache.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/FileSystem.h"
 #include <fcntl.h>
 
 // FIXME: This is terrible, we need this for ::close.
@@ -49,7 +50,7 @@ bool FileSystemStatCache::get(const char *Path, struct stat &StatBuf,
     R = Cache->getStat(Path, StatBuf, FileDescriptor);
   else if (isForDir) {
     // If this is a directory and we have no cache, just go to the file system.
-    R = ::stat(Path, &StatBuf) != 0 ? CacheMissing : CacheExists;
+    R = llvm::sys::fs::Stat(Path, &StatBuf) != 0 ? CacheMissing : CacheExists;
   } else {
     // Otherwise, we have to go to the filesystem.  We can always just use
     // 'stat' here, but (for files) the client is asking whether the file exists
@@ -62,7 +63,7 @@ bool FileSystemStatCache::get(const char *Path, struct stat &StatBuf,
 #ifdef O_BINARY
     OpenFlags |= O_BINARY;  // Open input file in binary mode on win32.
 #endif
-    *FileDescriptor = ::open(Path, OpenFlags);
+    *FileDescriptor = llvm::sys::fs::Open(Path, OpenFlags);
     
     if (*FileDescriptor == -1) {
       // If the open fails, our "stat" fails.

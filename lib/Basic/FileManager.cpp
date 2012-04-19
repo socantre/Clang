@@ -17,6 +17,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/ConvertUTF.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/FileSystemStatCache.h"
 #include "llvm/ADT/SmallString.h"
@@ -64,14 +65,43 @@ FileEntry::~FileEntry() {
 #ifdef LLVM_ON_WIN32
 
 namespace {
-  static std::string GetFullPath(const char *relPath) {
-    char *absPathStrPtr = _fullpath(NULL, relPath, 0);
-    assert(absPathStrPtr && "_fullpath() returned NULL!");
+  static std::string GetFullPath(const char *relPath, bool convertToLowercase) {
+    StringRef String(relPath);
+    unsigned NumBytes = String.size() + 1;
+    SmallVector<UTF16, 128> utf16(NumBytes);
+    const UTF8 *FromUTF8Ptr = (UTF8 *)String.data();
+    UTF16 *ToUTF16Ptr = &utf16[0];
 
-    std::string absPath(absPathStrPtr);
+    ConversionResult Result = ConvertUTF8toUTF16(&FromUTF8Ptr,
+                                                 FromUTF8Ptr + NumBytes,
+                                                 &ToUTF16Ptr,
+                                                 ToUTF16Ptr + NumBytes,
+                                                 strictConversion);
+    assert(Result == conversionOK);
 
-    free(absPathStrPtr);
-    return absPath;
+    wchar_t *absPath = _wfullpath(NULL, (wchar_t *)utf16.data(), utf16.size());
+    assert(absPath && "_wfullpath() returned NULL!");
+
+    unsigned NumWChars = ::wcslen(absPath);
+    if (convertToLowercase)
+    {
+      for (int i = 0; i != NumWChars; ++i)
+        absPath[i] = std::tolower(absPath[i], std::locale());
+    }
+
+    SmallVector<UTF8, 128> utf8(NumBytes);
+    const UTF16 *FromUTF16Ptr = (UTF16 *)absPath;
+    UTF8 *ToUTF8Ptr = &utf8[0];
+
+    Result = ConvertUTF16toUTF8(&FromUTF16Ptr, FromUTF16Ptr + NumWChars,
+                                &ToUTF8Ptr, ToUTF8Ptr + NumBytes,
+                                strictConversion);
+
+    assert(Result == conversionOK);
+
+    free(absPath);
+
+    return std::string((char *)utf8.data());
   }
 }
 
@@ -86,7 +116,7 @@ public:
   /// default-constructed DirectoryEntry.
   DirectoryEntry &getDirectory(const char *Name,
                                const struct stat & /*StatBuf*/) {
-    std::string FullPath(GetFullPath(Name));
+    std::string FullPath(GetFullPath(Name, false));
     return UniqueDirs.GetOrCreateValue(FullPath).getValue();
   }
 
@@ -103,10 +133,8 @@ public:
   /// there is already one; otherwise create and return a
   /// default-constructed FileEntry.
   FileEntry &getFile(const char *Name, const struct stat & /*StatBuf*/) {
-    std::string FullPath(GetFullPath(Name));
-
     // Lowercase string because Windows filesystem is case insensitive.
-    FullPath = StringRef(FullPath).lower();
+    std::string FullPath(GetFullPath(Name, true));
     return UniqueFiles.GetOrCreateValue(FullPath).getValue();
   }
 
@@ -561,7 +589,7 @@ bool FileManager::getNoncachedStatValue(StringRef Path,
   SmallString<128> FilePath(Path);
   FixupRelativePath(FilePath);
 
-  return ::stat(FilePath.c_str(), &StatBuf) != 0;
+  return llvm::sys::fs::Stat(FilePath.c_str(), &StatBuf) != 0;
 }
 
 void FileManager::GetUniqueIDMapping(

@@ -2477,7 +2477,7 @@ ASTReader::ASTReadResult ASTReader::validateFileEntries(ModuleFile &M) {
       // The stat info from the FileEntry came from the cached stat
       // info of the PCH, so we cannot trust it.
       struct stat StatBuf;
-      if (::stat(File->getName(), &StatBuf) != 0) {
+      if (llvm::sys::fs::Stat(File->getName(), &StatBuf) != 0) {
         StatBuf.st_size = File->getSize();
         StatBuf.st_mtime = File->getModificationTime();
       }
